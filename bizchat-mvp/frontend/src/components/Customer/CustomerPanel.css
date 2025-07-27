@@ -1,0 +1,93 @@
+.customer-panel {
+  width: 280px;
+  background: white;
+  border-left: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.customer-details {
+  padding: 1rem;
+  flex: 1;
+}
+
+.detail-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.detail-group label {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.detail-group span {
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.detail-group .status {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  display: inline-block;
+  width: fit-content;
+}
+
+.detail-group .status.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.detail-group .status.resolved {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.quick-actions {
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+.quick-actions h4 {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+  background: #e9ecef;
+}
+
+.action-btn:last-child {
+  margin-bottom: 0;
+}

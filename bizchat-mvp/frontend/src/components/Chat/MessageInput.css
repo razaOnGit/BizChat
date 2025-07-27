@@ -1,0 +1,64 @@
+.message-input-container {
+  border-top: 1px solid #e0e0e0;
+  background: white;
+  padding: 1rem;
+}
+
+.message-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 24px;
+  padding: 0.5rem;
+}
+
+.attach-button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.attach-button:hover {
+  background: #e9ecef;
+}
+
+.message-input textarea {
+  flex: 1;
+  border: none;
+  background: none;
+  resize: none;
+  outline: none;
+  padding: 0.5rem;
+  font-family: inherit;
+  line-height: 1.4;
+  max-height: 100px;
+}
+
+.send-button {
+  background: #2196f3;
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.send-button:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.send-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}

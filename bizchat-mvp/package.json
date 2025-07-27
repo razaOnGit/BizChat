@@ -1,0 +1,20 @@
+{
+  "name": "bizchat-mvp",
+  "version": "1.0.0",
+  "description": "Business Chat Application MVP",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "test-api": "cd backend && node test-api.js"
+  },
+  "keywords": ["chat", "business", "real-time", "socket.io", "react"],
+  "author": "Senior Software Engineer",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

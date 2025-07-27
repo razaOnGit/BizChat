@@ -1,0 +1,42 @@
+.app-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+.app-header {
+  background: #2c3e50;
+  color: white;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid #34495e;
+}
+
+.business-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.business-info h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.status {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status.online {
+  background: #27ae60;
+  color: white;
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
