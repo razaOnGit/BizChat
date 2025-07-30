@@ -17,9 +17,21 @@ export const useConversations = (businessId) => {
       setLoading(true);
       setError(null);
       const response = await conversationAPI.getConversations(businessId);
-      setConversations(response.data || []);
+      
+      // Handle different response structures
+      let conversationsData = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          conversationsData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          conversationsData = response.data.data;
+        }
+      }
+      
+      setConversations(conversationsData);
     } catch (err) {
-      setError(err.message);
+      console.error('Error loading conversations:', err);
+      setError(err.message || 'Failed to load conversations');
       setConversations([]);
     } finally {
       setLoading(false);

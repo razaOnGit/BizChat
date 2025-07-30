@@ -19,12 +19,7 @@ class SocketHandler {
         joinedAt: new Date().toISOString()
       });
       
-      // Notify other business users
-      socket.to(`business_${businessId}`).emit(SOCKET_EVENTS.USER_JOINED, {
-        socketId: socket.id,
-        type: 'business',
-        timestamp: new Date().toISOString()
-      });
+
       
       console.log(`[Socket] Business ${businessId} joined by ${socket.id}`);
     });
@@ -121,14 +116,7 @@ class SocketHandler {
           this.clearTypingStatus(socket.id, userInfo.currentConversation);
         }
         
-        // Notify business room about user leaving
-        if (userInfo.businessId) {
-          socket.to(`business_${userInfo.businessId}`).emit(SOCKET_EVENTS.USER_LEFT, {
-            socketId: socket.id,
-            type: userInfo.type,
-            timestamp: new Date().toISOString()
-          });
-        }
+
         
         this.connectedUsers.delete(socket.id);
       }
@@ -171,32 +159,7 @@ class SocketHandler {
     }
   }
 
-  // Get connected users count
-  getConnectedUsersCount() {
-    return this.connectedUsers.size;
-  }
 
-  // Get users in business
-  getBusinessUsers(businessId) {
-    const businessUsers = [];
-    this.connectedUsers.forEach((userInfo, socketId) => {
-      if (userInfo.businessId === businessId) {
-        businessUsers.push({ socketId, ...userInfo });
-      }
-    });
-    return businessUsers;
-  }
-
-  // Get typing users in conversation
-  getTypingUsers(conversationId) {
-    const typingInConversation = [];
-    this.typingUsers.forEach((typingInfo, socketId) => {
-      if (typingInfo.conversationId === conversationId) {
-        typingInConversation.push({ socketId, ...typingInfo });
-      }
-    });
-    return typingInConversation;
-  }
 }
 
 module.exports = SocketHandler;

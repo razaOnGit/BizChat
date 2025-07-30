@@ -11,8 +11,8 @@ const ConversationSidebar = ({ businessId, selectedConversation, onSelectConvers
   if (error) return <div className="sidebar-error">Error: {error}</div>;
 
   // Filter conversations based on search term
-  const filteredConversations = conversations.filter(conversation =>
-    conversation.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredConversations = (conversations || []).filter(conversation =>
+    conversation?.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

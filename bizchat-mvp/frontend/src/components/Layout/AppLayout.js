@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ConversationSidebar from '../Conversations/ConversationSidebar';
 import ChatArea from '../Chat/ChatArea';
 import CustomerPanel from '../Customer/CustomerPanel';
+import ErrorBoundary from '../ErrorBoundary';
 import { useSocket } from '../../hooks/useSocket';
 import './AppLayout.css';
 
@@ -21,20 +22,26 @@ const AppLayout = () => {
       </div>
       
       <div className="app-body">
-        <ConversationSidebar
-          businessId={businessId}
-          selectedConversation={selectedConversation}
-          onSelectConversation={setSelectedConversation}
-        />
+        <ErrorBoundary>
+          <ConversationSidebar
+            businessId={businessId}
+            selectedConversation={selectedConversation}
+            onSelectConversation={setSelectedConversation}
+          />
+        </ErrorBoundary>
         
-        <ChatArea
-          conversation={selectedConversation}
-        />
-        
-        {selectedConversation && (
-          <CustomerPanel
+        <ErrorBoundary>
+          <ChatArea
             conversation={selectedConversation}
           />
+        </ErrorBoundary>
+        
+        {selectedConversation && (
+          <ErrorBoundary>
+            <CustomerPanel
+              conversation={selectedConversation}
+            />
+          </ErrorBoundary>
         )}
       </div>
     </div>

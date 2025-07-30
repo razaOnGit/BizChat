@@ -9,18 +9,13 @@ const fs = require('fs');
 // Import configuration and utilities
 const config = require('./src/config/config');
 const SocketHandler = require('./src/socket/socketHandler');
-const errorHandler = require('./src/middleware/errorHandler');
-const { logger, socketLogger } = require('./src/middleware/logger');
+const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
+const { requestLogger, errorLogger, socketLogger } = require('./src/middleware/logger');
 const { createSuccessResponse } = require('./src/utils/helpers');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: config.corsOrigin,
-    methods: ["GET", "POST", "PATCH", "DELETE"]
-  }
-});
+const io = socketIo(server, config.socket);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -29,13 +24,16 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Global middleware
-app.use(logger); // Request logging
-app.use(cors({ 
-  origin: config.corsOrigin,
-  credentials: true
+app.use(requestLogger); // Request logging
+app.use(cors(config.cors));
+app.use(express.json({ 
+  limit: '10mb',
+  type: 'application/json'
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb' 
+}));
 app.use('/uploads', express.static('uploads'));
 
 // Make io available to routes
@@ -47,7 +45,19 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/conversations', require('./src/routes/conversations'));
 app.use('/api/upload', require('./src/routes/upload'));
-app.use('/api/business', require('./src/routes/business'));
+
+// Create business routes if they don't exist
+try {
+  app.use('/api/business', require('./src/routes/business'));
+} catch (error) {
+  console.warn('Business routes not found, creating basic route');
+  const businessController = require('./src/controllers/businessController');
+  const businessRouter = express.Router();
+  businessRouter.get('/:businessId', businessController.getBusinessInfo);
+  businessRouter.patch('/:businessId/status', businessController.updateBusinessStatus);
+  businessRouter.get('/:businessId/stats', businessController.getBusinessStatistics);
+  app.use('/api/business', businessRouter);
+}
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -91,22 +101,19 @@ app.get('/api/docs', (req, res) => {
   });
 });
 
-// 404 handler for API routes
-app.use('/api/*', (req, res) => {
-  res.status(404).json({
-    error: 'API endpoint not found',
-    message: `The endpoint ${req.method} ${req.originalUrl} does not exist`,
-    availableEndpoints: '/api/docs'
-  });
-});
+// 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Error logging middleware (before error handler)
+app.use(errorLogger);
+
+// Global error handler (must be last)
+app.use(errorHandler);
 
 // Socket.io middleware and handling
 io.use(socketLogger);
 const socketHandler = new SocketHandler(io);
 io.on('connection', (socket) => socketHandler.handleConnection(socket));
-
-// Global error handler (must be last)
-app.use(errorHandler);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
