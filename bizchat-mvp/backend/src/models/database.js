@@ -1,21 +1,20 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const config = require('../config/config');
-const { logError, logInfo } = require('../utils/helpers');
 
 class Database {
   constructor() {
     try {
-      this.db = new sqlite3.Database(config.dbPath, (err) => {
+      const dbPath = path.join(__dirname, '../../database.sqlite');
+      this.db = new sqlite3.Database(dbPath, (err) => {
         if (err) {
-          logError(err, 'Database Connection');
+          console.error('Database connection error:', err);
           throw err;
         }
-        logInfo('Connected to SQLite database', { dbPath: config.dbPath });
+        console.log('Connected to SQLite database');
       });
       this.initializeTables();
     } catch (error) {
-      logError(error, 'Database Constructor');
+      console.error('Database constructor error:', error);
       throw error;
     }
   }
@@ -29,28 +28,29 @@ class Database {
         status TEXT DEFAULT 'online',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS conversations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customer_name TEXT NOT NULL,
         customer_phone TEXT,
         business_id TEXT NOT NULL,
         status TEXT DEFAULT 'active',
-        last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_message TEXT,
+        last_message_time TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (business_id) REFERENCES businesses(id)
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL,
-        sender_type TEXT NOT NULL, -- 'business' or 'customer'
+        sender_type TEXT NOT NULL,
         sender_name TEXT NOT NULL,
         content TEXT,
-        message_type TEXT DEFAULT 'text', -- 'text', 'file', 'image'
+        message_type TEXT DEFAULT 'text',
         file_url TEXT,
         file_name TEXT,
-        status TEXT DEFAULT 'sent', -- 'sent', 'delivered', 'read'
+        status TEXT DEFAULT 'sent',
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id)
       )`
@@ -61,7 +61,7 @@ class Database {
         await new Promise((resolve, reject) => {
           this.db.run(query, (err) => {
             if (err) {
-              logError(err, 'Table Creation', { query: query.substring(0, 50) + '...' });
+              console.error('Table creation error:', err);
               reject(err);
             } else {
               resolve();
@@ -69,11 +69,11 @@ class Database {
           });
         });
       }
-      
-      logInfo('Database tables initialized successfully');
+
+      console.log('Database tables initialized successfully');
       await this.seedData();
     } catch (error) {
-      logError(error, 'Initialize Tables');
+      console.error('Initialize tables error:', error);
       throw error;
     }
   }
@@ -83,78 +83,73 @@ class Database {
       // Check if data already exists
       const existingBusiness = await this.getBusinessById('tech-store');
       if (existingBusiness) {
-        logInfo('Database already seeded, skipping...');
+        console.log('Database already seeded, skipping...');
         return;
       }
 
       // Insert demo business
       await new Promise((resolve, reject) => {
-        this.db.run(`INSERT OR IGNORE INTO businesses (id, name, logo_url, status)
+        this.db.run(`INSERT INTO businesses (id, name, logo_url, status)
                      VALUES (?, ?, ?, ?)`,
-                    ['tech-store', 'Tech Store Support', '/logo.png', 'online'],
-                    function(err) {
-                      if (err) {
-                        logError(err, 'Seed Business Data');
-                        reject(err);
-                      } else {
-                        resolve();
-                      }
-                    });
+          ['tech-store', 'Tech Store Support', '/logo.png', 'online'],
+          function (err) {
+            if (err) {
+              console.error('Seed business error:', err);
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
       });
 
       // Insert demo conversations
       const conversations = [
-        ['John Doe', '+1234567890', 'tech-store', 'active'],
-        ['Sarah Johnson', '+1234567891', 'tech-store', 'active'],
-        ['Mike Chen', '+1234567892', 'tech-store', 'resolved']
+        ['John Doe', '+1234567890', 'tech-store', 'active', 'Hi, my laptop is not charging properly', '2025-08-03 10:30:00'],
+        ['Sarah Johnson', '+1234567891', 'tech-store', 'active', 'I need help with my order #12345', '2025-08-03 10:25:00'],
+        ['Mike Chen', '+1234567892', 'tech-store', 'active', 'My gaming mouse stopped working', '2025-08-03 10:20:00'],
+        ['Emma Wilson', '+1234567893', 'tech-store', 'resolved', 'Thank you for the help!', '2025-08-03 10:15:00'],
+        ['David Smith', '+1234567894', 'tech-store', 'active', 'Keyboard keys are sticking', '2025-08-03 10:10:00']
       ];
 
       for (const conv of conversations) {
         await new Promise((resolve, reject) => {
-          this.db.run(`INSERT OR IGNORE INTO conversations
-                       (customer_name, customer_phone, business_id, status)
-                       VALUES (?, ?, ?, ?)`, conv,
-                       function(err) {
-                         if (err) {
-                           logError(err, 'Seed Conversation Data', { conversation: conv[0] });
-                           reject(err);
-                         } else {
-                           resolve();
-                         }
-                       });
+          this.db.run(`INSERT INTO conversations
+                       (customer_name, customer_phone, business_id, status, last_message, last_message_time)
+                       VALUES (?, ?, ?, ?, ?, ?)`, conv,
+            function (err) {
+              if (err) {
+                console.error('Seed conversation error:', err);
+                reject(err);
+              } else {
+                resolve();
+              }
+            });
         });
       }
 
-      logInfo('Database seeded successfully');
+      console.log('Database seeded successfully');
     } catch (error) {
-      logError(error, 'Seed Data');
+      console.error('Seed data error:', error);
       throw error;
     }
   }
 
-  // Database methods
+  // Main database methods
   async getConversations(businessId) {
     return new Promise((resolve, reject) => {
       if (!businessId) {
-        const error = new Error('Business ID is required');
-        error.name = 'ValidationError';
-        return reject(error);
+        return reject(new Error('Business ID is required'));
       }
 
       this.db.all(`
         SELECT c.*,
-               m.content as last_message,
-               m.timestamp as last_message_time,
-               COUNT(CASE WHEN m.status != 'read' AND m.sender_type = 'customer' THEN 1 END) as unread_count
+               (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.sender_type = 'customer') as unread_count
         FROM conversations c
-        LEFT JOIN messages m ON c.id = m.conversation_id
         WHERE c.business_id = ?
-        GROUP BY c.id
-        ORDER BY c.last_message_at DESC
+        ORDER BY c.created_at DESC
       `, [businessId], (err, rows) => {
         if (err) {
-          logError(err, 'Get Conversations', { businessId });
-          err.name = 'DatabaseError';
+          console.error('Get conversations error:', err);
           reject(err);
         } else {
           resolve(rows || []);
@@ -179,116 +174,107 @@ class Database {
 
   async createMessage(messageData) {
     return new Promise((resolve, reject) => {
-      const { conversationId, senderType, senderName, content, messageType, fileUrl, fileName } = messageData;
+      console.log('🔍 Database createMessage called with:', messageData);
       
-      // Validate required fields
-      if (!conversationId || !senderType || !senderName) {
-        const error = new Error('Missing required fields: conversationId, senderType, senderName');
-        error.name = 'ValidationError';
-        return reject(error);
+      const { conversationId, senderType, senderName, senderId, content, messageType, fileUrl, fileName } = messageData;
+
+      // Use senderName if provided, otherwise use senderId
+      const actualSenderName = senderName || senderId;
+      
+      console.log('🔍 Processed fields:', {
+        conversationId,
+        senderType,
+        actualSenderName,
+        content,
+        messageType: messageType || 'text',
+        fileUrl,
+        fileName
+      });
+
+      if (!conversationId || !senderType || !actualSenderName) {
+        console.error('❌ Missing required fields:', { conversationId, senderType, senderName, senderId, actualSenderName });
+        return reject(new Error('Missing required fields: conversationId, senderType, senderName/senderId'));
       }
 
-      // Validate content or file
       if (!content && !fileUrl) {
-        const error = new Error('Message must have either content or file attachment');
-        error.name = 'ValidationError';
-        return reject(error);
+        console.error('❌ Missing content and fileUrl');
+        return reject(new Error('Message must have either content or file attachment'));
       }
-      
-      this.db.run(`
+
+      const query = `
         INSERT INTO messages (conversation_id, sender_type, sender_name, content, message_type, file_url, file_name)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [conversationId, senderType, senderName, content, messageType || 'text', fileUrl, fileName],
-       function(err) {
+      `;
+      const params = [conversationId, senderType, actualSenderName, content, messageType || 'text', fileUrl, fileName];
+      
+      console.log('🔍 Executing SQL:', query);
+      console.log('🔍 With parameters:', params);
+
+      this.db.run(query, params, function (err) {
         if (err) {
-          logError(err, 'Create Message', { conversationId, senderType });
-          err.name = 'DatabaseError';
+          console.error('❌ SQL execution error:', err);
+          console.error('❌ Error details:', {
+            message: err.message,
+            code: err.code,
+            errno: err.errno
+          });
           reject(err);
         } else {
-          const newMessage = { 
-            id: this.lastID, 
-            ...messageData, 
-            timestamp: new Date().toISOString() 
+          console.log('✅ SQL executed successfully, lastID:', this.lastID);
+          const newMessage = {
+            id: this.lastID,
+            conversation_id: conversationId,
+            sender_type: senderType,
+            sender_name: actualSenderName,
+            content,
+            message_type: messageType || 'text',
+            file_url: fileUrl,
+            file_name: fileName,
+            timestamp: new Date().toISOString()
           };
+          console.log('✅ Returning message:', newMessage);
           resolve(newMessage);
         }
       });
     });
   }
 
-  // Additional database methods for enhanced functionality
+  // Helper methods
   async getBusinessById(businessId) {
     return new Promise((resolve, reject) => {
-      this.db.get(`
-        SELECT * FROM businesses WHERE id = ?
-      `, [businessId], (err, row) => {
+      this.db.get(`SELECT * FROM businesses WHERE id = ?`, [businessId], (err, row) => {
         if (err) reject(err);
         else resolve(row);
-      });
-    });
-  }
-
-  async updateBusinessStatus(businessId, status) {
-    return new Promise((resolve, reject) => {
-      this.db.run(`
-        UPDATE businesses SET status = ? WHERE id = ?
-      `, [status, businessId], function(err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes });
       });
     });
   }
 
   async getConversationById(conversationId) {
     return new Promise((resolve, reject) => {
-      this.db.get(`
-        SELECT * FROM conversations WHERE id = ?
-      `, [conversationId], (err, row) => {
+      this.db.get(`SELECT * FROM conversations WHERE id = ?`, [conversationId], (err, row) => {
         if (err) reject(err);
         else resolve(row);
       });
     });
   }
 
-  async updateConversationStatus(conversationId, status) {
-    return new Promise((resolve, reject) => {
-      this.db.run(`
-        UPDATE conversations SET status = ? WHERE id = ?
-      `, [status, conversationId], function(err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes });
-      });
-    });
-  }
-
   async updateConversationTimestamp(conversationId) {
     return new Promise((resolve, reject) => {
-      this.db.run(`
-        UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?
-      `, [conversationId], function(err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes });
-      });
+      this.db.run(`UPDATE conversations SET last_message_time = CURRENT_TIMESTAMP WHERE id = ?`,
+        [conversationId], function (err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        });
     });
   }
 
-  async getBusinessStats(businessId) {
+  async updateConversationLastMessage(conversationId, message, timestamp) {
     return new Promise((resolve, reject) => {
-      this.db.all(`
-        SELECT 
-          COUNT(DISTINCT c.id) as total_conversations,
-          COUNT(DISTINCT CASE WHEN c.status = 'active' THEN c.id END) as active_conversations,
-          COUNT(DISTINCT CASE WHEN c.status = 'resolved' THEN c.id END) as resolved_conversations,
-          COUNT(m.id) as total_messages,
-          COUNT(CASE WHEN m.sender_type = 'customer' THEN m.id END) as customer_messages,
-          COUNT(CASE WHEN m.sender_type = 'business' THEN m.id END) as business_messages
-        FROM conversations c
-        LEFT JOIN messages m ON c.id = m.conversation_id
-        WHERE c.business_id = ?
-      `, [businessId], (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows[0] || {});
-      });
+      this.db.run(`UPDATE conversations SET last_message = ?, last_message_time = ? WHERE id = ?`, 
+        [message, timestamp, conversationId], function(err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        });
     });
   }
 
@@ -296,17 +282,13 @@ class Database {
     return new Promise((resolve, reject) => {
       this.db.all(`
         SELECT c.*,
-               m.content as last_message,
-               m.timestamp as last_message_time,
-               COUNT(CASE WHEN m.status != 'read' AND m.sender_type = 'customer' THEN 1 END) as unread_count
+               (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.sender_type = 'customer') as unread_count
         FROM conversations c
-        LEFT JOIN messages m ON c.id = m.conversation_id
         WHERE c.business_id = ? AND c.customer_name LIKE ?
-        GROUP BY c.id
-        ORDER BY c.last_message_at DESC
+        ORDER BY c.created_at DESC
       `, [businessId, `%${searchTerm}%`], (err, rows) => {
         if (err) reject(err);
-        else resolve(rows);
+        else resolve(rows || []);
       });
     });
   }

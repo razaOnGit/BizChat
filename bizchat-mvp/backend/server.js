@@ -6,16 +6,16 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// Import configuration and utilities
-const config = require('./src/config/config');
-const SocketHandler = require('./src/socket/socketHandler');
-const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
-const { requestLogger, errorLogger, socketLogger } = require('./src/middleware/logger');
-const { createSuccessResponse } = require('./src/utils/helpers');
-
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, config.socket);
+const io = socketIo(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    methods: ['GET', 'POST']
+  }
+});
+
+const port = process.env.PORT || 5000;
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -23,17 +23,16 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Global middleware
-app.use(requestLogger); // Request logging
-app.use(cors(config.cors));
-app.use(express.json({ 
-  limit: '10mb',
-  type: 'application/json'
+// Middleware
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: '10mb' 
-}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static('uploads'));
 
 // Make io available to routes
@@ -46,28 +45,14 @@ app.use((req, res, next) => {
 app.use('/api/conversations', require('./src/routes/conversations'));
 app.use('/api/upload', require('./src/routes/upload'));
 
-// Create business routes if they don't exist
-try {
-  app.use('/api/business', require('./src/routes/business'));
-} catch (error) {
-  console.warn('Business routes not found, creating basic route');
-  const businessController = require('./src/controllers/businessController');
-  const businessRouter = express.Router();
-  businessRouter.get('/:businessId', businessController.getBusinessInfo);
-  businessRouter.patch('/:businessId/status', businessController.updateBusinessStatus);
-  businessRouter.get('/:businessId/stats', businessController.getBusinessStatistics);
-  app.use('/api/business', businessRouter);
-}
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json(createSuccessResponse({
+  res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    version: process.version
-  }, 'Server is healthy'));
+    message: 'Server is healthy'
+  });
 });
 
 // API documentation endpoint
@@ -78,20 +63,11 @@ app.get('/api/docs', (req, res) => {
     endpoints: {
       conversations: {
         'GET /api/conversations/business/:businessId': 'Get all conversations for a business',
-        'GET /api/conversations/:id': 'Get conversation details',
         'GET /api/conversations/:id/messages': 'Get messages for a conversation',
-        'POST /api/conversations/:id/messages': 'Send a new message',
-        'PATCH /api/conversations/:id/status': 'Update conversation status'
-      },
-      business: {
-        'GET /api/business/:businessId': 'Get business information',
-        'PATCH /api/business/:businessId/status': 'Update business status',
-        'GET /api/business/:businessId/stats': 'Get business statistics'
+        'POST /api/conversations/:id/messages': 'Send a new message'
       },
       upload: {
-        'POST /api/upload': 'Upload a file',
-        'GET /api/upload/:filename': 'Get file information',
-        'DELETE /api/upload/:filename': 'Delete a file'
+        'POST /api/upload': 'Upload a file'
       },
       system: {
         'GET /api/health': 'Health check',
@@ -102,16 +78,26 @@ app.get('/api/docs', (req, res) => {
 });
 
 // 404 handler for undefined routes
-app.use(notFoundHandler);
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Route ${req.method} ${req.path} not found`,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Error logging middleware (before error handler)
-app.use(errorLogger);
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Global error handler (must be last)
-app.use(errorHandler);
-
-// Socket.io middleware and handling
-io.use(socketLogger);
+// Socket.io handling
+const SocketHandler = require('./src/socket/socketHandler');
 const socketHandler = new SocketHandler(io);
 io.on('connection', (socket) => socketHandler.handleConnection(socket));
 
@@ -131,13 +117,28 @@ process.on('SIGINT', () => {
 });
 
 // Start server
-server.listen(config.port, () => {
-  console.log(`🚀 BizChat MVP Server running on port ${config.port}`);
-  console.log(`📡 CORS enabled for: ${config.corsOrigin}`);
+server.listen(port, () => {
+  console.log(`🚀 BizChat MVP Server running on http://localhost:${port}`);
+  console.log(`📡 CORS enabled for: ${process.env.CORS_ORIGIN || 'http://localhost:3000'}`);
   console.log(`📁 Uploads directory: ${uploadsDir}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📚 API Documentation: http://localhost:${config.port}/api/docs`);
-  console.log(`❤️  Health Check: http://localhost:${config.port}/api/health`);
+  console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  console.log(`❤️  Health Check: http://localhost:${port}/api/health`);
 });
+
+// Test database connection after startup
+setTimeout(async () => {
+  try {
+    console.log('\n🔍 Testing database connection...');
+    const database = require('./src/models/database');
+    const conversations = await database.getConversations('tech-store');
+    console.log(`✅ Database connected! Found ${conversations.length} conversations:`);
+    conversations.forEach((conv, index) => {
+      console.log(`  ${index + 1}. ${conv.customer_name} - "${conv.last_message || 'No message'}"`);
+    });
+  } catch (error) {
+    console.error('❌ Database connection failed:', error.message);
+  }
+}, 3000);
 
 module.exports = app;
